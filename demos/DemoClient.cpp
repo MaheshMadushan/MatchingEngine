@@ -37,7 +37,7 @@ int main()
         clientPtr->send<gbase::ByteBuffer<std::byte>>(std::move(bb));
 
         // close connection
-        sleep(1);
+        usleep(100);
     }
     return 0;
 }

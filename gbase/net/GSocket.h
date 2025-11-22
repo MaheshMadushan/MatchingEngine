@@ -103,9 +103,9 @@ namespace gbase::net::l1
                 if (ssize_t readBytes = recv(client_socket_file_descriptor, buffer, sizeof(buffer), 0); readBytes > 0)
                 {
                     GLOG_DEBUG_L1("read {} bytes", readBytes);
-                    receive_buffer->append(buffer, readBytes);
-                    ioctl(client_socket_file_descriptor, FIONREAD, &flag);
-                    buffer[0] = static_cast<std::byte>('\0');
+                    // receive_buffer->append(buffer, readBytes);
+                    // ioctl(client_socket_file_descriptor, FIONREAD, &flag);
+                    // buffer[0] = static_cast<std::byte>('\0');
                 }
                 else
                 {

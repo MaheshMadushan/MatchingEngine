@@ -28,6 +28,7 @@ void GSyncServer<>::start()
         rv = select(maxfd + 1, &readfds, &writefds, NULL, &tv);
         if (rv != -1)
         {
+            usleep(100'000);
             if (FD_ISSET(m_serverSocket.getSocketFileDescriptor(), &readfds))
             {
                 GLOG_DEBUG_L1("Client Connected")
@@ -42,16 +43,17 @@ void GSyncServer<>::start()
                 ++index;
                 if (FD_ISSET(client_fd, &readfds) == true)
                 {
-                    std::shared_ptr<ByteBuffer<std::byte>> p_byteBuffer {m_serverSocket.receiveData(client_fd)};
-                    GLOG_DEBUG_L1("read from client {}", client_fd);
-                    print_byte_array(*p_byteBuffer.get());
-                    if (p_byteBuffer.get()->get_filled_size() == 0)
-                    {
-                        GLOG_DEBUG_L1("client {} closed connection", client_fd);
-                        m_serverSocket.closeSocket(client_fd);
-                        m_clientSockets.erase(m_clientSockets.begin() + index - 1);
-                        continue;
-                    }
+                    m_serverSocket.receiveData(client_fd);
+                    // std::shared_ptr<ByteBuffer<std::byte>> p_byteBuffer {m_serverSocket.receiveData(client_fd)};
+                    // GLOG_DEBUG_L1("read from client {}", client_fd);
+                    // print_byte_array(*p_byteBuffer.get());
+                    // if (p_byteBuffer.get()->get_filled_size() == 0)
+                    // {
+                    //     GLOG_DEBUG_L1("client {} closed connection", client_fd);
+                    //     m_serverSocket.closeSocket(client_fd);
+                    //     m_clientSockets.erase(m_clientSockets.begin() + index - 1);
+                    //     continue;
+                    // }
                     // m_serverSocket.sendData(client_fd, response_byteBuffer); TODO
                 }
             }
