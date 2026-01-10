@@ -13,7 +13,7 @@ namespace gbase::net
 {
     using namespace gbase::net::l1;
     template <GEventHandlingMode E, typename T>
-        requires std::is_base_of_v<ByteBuffer<std::byte>, T>
+        requires std::is_base_of_v<gbase::ByteBuffer<std::byte>, T>
     class GClient
     {
 
@@ -111,7 +111,7 @@ namespace gbase::net
     };
 
     template <typename T>
-        requires std::is_base_of_v<ByteBuffer<std::byte>, T>
+        requires std::is_base_of_v<gbase::ByteBuffer<std::byte>, T>
     class GAsyncClient : public GClient<GEventHandlingMode::ASYNC, T>
     {
     public:

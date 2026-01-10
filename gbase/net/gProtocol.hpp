@@ -158,6 +158,13 @@ namespace gbase::net::gProtocol::v1
                 __client_states.emplace(client_id, State::CONNECTED);
             }
 
+            void onClientDisconnect(ClientId client_id)
+            {
+                __client_states.erase(client_id);
+                __data_waiting_to_receive.erase(client_id);
+                __data_waiting_to_sent.erase(client_id);
+            }
+
             [[nodiscard]] auto send(ClientId client_id, gbase::ByteBuffer<std::byte> &data) -> gbase::ByteBuffer<std::byte>
             {
                 GLOG_INFO("Server protocol send called client {}", client_id)
@@ -267,7 +274,7 @@ namespace gbase::net::gProtocol::v1
                 return empty_data;
             };
 
-            auto recieve(ClientId client_id, gbase::ByteBuffer<std::byte> &data) -> gbase::ByteBuffer<std::byte>
+            [[nodiscard]] auto recieve(ClientId client_id, gbase::ByteBuffer<std::byte> &data) -> gbase::ByteBuffer<std::byte>
             {
                 // WARNING : TODO make sure it is a header (handle)
                 data.read<sizeof(uint16_t)>(reinterpret_cast<char *>(&__header_and_proto_version__));
@@ -339,7 +346,6 @@ namespace gbase::net::gProtocol::v1
                                 received_data.append(static_cast<const char *>(app_data), __size_of_data__);
                                 itr->second.push({ack.get_filled_size(), TrasnmittingDataType::APPLICATION_DATA, std::move(received_data)});
 
-                                // __data_waiting_to_receive.emplace(client_id, q);
                                 delete[] app_data;
                             }
 
