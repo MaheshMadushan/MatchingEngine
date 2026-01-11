@@ -56,8 +56,7 @@ void GSyncServer<>::start()
                     }
                     ByteBuffer<std::byte> recieved_bytes{server_protocol.recieve(client_fd, *p_byteBuffer)};
                     if (recieved_bytes.get_filled_size() > 0)
-                        GLOG_DEBUG_L1("client data {}", client_fd);
-                        gbase::print_byte_array(recieved_bytes);
+                        GLOG_INFO("client data {}", client_fd);
                     // this way protocol is IPC method agnostic
                 }
 
@@ -67,8 +66,11 @@ void GSyncServer<>::start()
                     ByteBuffer<std::byte> static_message_bytes;
                     static_message_bytes.append(static_message.c_str(), static_message.size());
                     ByteBuffer<std::byte> bytes_to_send{server_protocol.send(client_fd, static_message_bytes)};
-                    if (bytes_to_send.get_filled_size() > 0)
-                        m_serverSocket.send(client_fd, bytes_to_send);
+                    
+                    if (bytes_to_send.get_filled_size() > 0){
+                        GLOG_DEBUG_L1("send to client {}", client_fd);
+                        gbase::print_byte_array(bytes_to_send);
+                        m_serverSocket.send(client_fd, bytes_to_send);}
                     // this way protocol is IPC method agnostic
                 }
             }

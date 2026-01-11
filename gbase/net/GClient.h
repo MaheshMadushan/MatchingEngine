@@ -8,6 +8,7 @@
 #include <type_traits>
 #include <memory>
 #include <ByteBuffer.hpp>
+#include <gProtocol.hpp>
 
 namespace gbase::net
 {
@@ -49,6 +50,7 @@ namespace gbase::net
                 exit(1);
                 return;
             }
+            client_protocol.onClientConnect(clientSocket.getSocketFileDescriptor());
         }
 
         template <typename U = T>
@@ -71,6 +73,7 @@ namespace gbase::net
 
         static constexpr GEventHandlingMode m_serverMode{E};
         GSocket clientSocket;
+        gbase::net::gProtocol::v1::server::Protocol client_protocol{};
     };
 
     template <typename T>
@@ -133,8 +136,8 @@ namespace gbase::net
             {
                 FD_ZERO(&writefds);
                 FD_ZERO(&readfds);
-                FD_SET(this->clientSocket.getSocketfd(), &readfds);
-                FD_SET(this->clientSocket.getSocketfd(), &writefds);
+                FD_SET(this->clientSocket.getSocketFileDescriptor(), &readfds);
+                FD_SET(this->clientSocket.getSocketFileDescriptor(), &writefds);
                 FD_SET(eventNotifyingFileDiscriptor, &readfds);
                 maxfd = eventNotifyingFileDiscriptor;
 
@@ -145,7 +148,39 @@ namespace gbase::net
                 rv = select(maxfd + 1, &readfds, holdingEvent == Event::MESSAGE_BUFFERRED ? &writefds : NULL, NULL, &tv);
                 if (rv != -1)
                 {
-                    GLOG_DEBUG_L1("Select returned {}", rv);
+                    if (FD_ISSET(this->clientSocket.getSocketFileDescriptor(), &readfds) == true)
+                    {
+                        std::shared_ptr<ByteBuffer<std::byte>> p_byteBuffer{this->clientSocket.receive(this->clientSocket.getSocketFileDescriptor())};
+                        GLOG_INFO("read from client {}", this->clientSocket.getSocketFileDescriptor());
+                        gbase::print_byte_array(*p_byteBuffer.get());
+                        if (p_byteBuffer.get()->get_filled_size() == 0)
+                        {
+                            GLOG_DEBUG_L1("client {} closed connection", this->clientSocket.getSocketFileDescriptor());
+                            this->clientSocket.closeSocket(this->clientSocket.getSocketFileDescriptor());
+                            // m_clientSockets.erase(m_clientSockets.begin() + index - 1);
+                            this->client_protocol.onClientDisconnect(this->clientSocket.getSocketFileDescriptor());
+                            continue;
+                        }
+                        ByteBuffer<std::byte> recieved_bytes{this->client_protocol.recieve(this->clientSocket.getSocketFileDescriptor(), *p_byteBuffer)};
+                        if (recieved_bytes.get_filled_size() > 0)
+                            GLOG_DEBUG_L1("client data {}", this->clientSocket.getSocketFileDescriptor());
+                        // this way protocol is IPC method agnostic
+                    }
+
+                    if (FD_ISSET(this->clientSocket.getSocketFileDescriptor(), &writefds) == true)
+                    {
+                        // std::string static_message = "Hi from server";
+                        // GLOG_INFO("send to client {}", static_message)
+                        ByteBuffer<std::byte> static_message_bytes;
+                        // static_message_bytes.append(static_message.c_str(), static_message.size());
+                        ByteBuffer<std::byte> bytes_to_send{this->client_protocol.send(this->clientSocket.getSocketFileDescriptor(), static_message_bytes)};
+                        GLOG_INFO("send to client {}", this->clientSocket.getSocketFileDescriptor());
+                        gbase::print_byte_array(bytes_to_send);
+                        if (bytes_to_send.get_filled_size() > 0)
+                            this->clientSocket.send(this->clientSocket.getSocketFileDescriptor(), bytes_to_send);
+                        // this way protocol is IPC method agnostic
+                    }
+                    /*GLOG_DEBUG_L1("Select returned {}", rv);
                     if (FD_ISSET(eventNotifyingFileDiscriptor, &readfds) &&
                         Event::NONE == static_cast<Event>(holdingEvent))
                     {
@@ -153,7 +188,7 @@ namespace gbase::net
                         GLOG_DEBUG_L1("event read :- {}", holdingEvent);
                     }
 
-                    if (FD_ISSET(this->clientSocket.getSocketfd(), &readfds) == true)
+                    if (FD_ISSET(this->clientSocket.getSocketFileDescriptor(), &readfds) == true)
                     {
                         GLOG_DEBUG_L1("Data available to read...");
                         auto request = this->clientSocket.receiveData().c_str();
@@ -165,7 +200,7 @@ namespace gbase::net
                         // incomingMsgQueue.push(request);
                     }
 
-                    if (FD_ISSET(this->clientSocket.getSocketfd(), &writefds) == true &&
+                    if (FD_ISSET(this->clientSocket.getSocketFileDescriptor(), &writefds) == true &&
                         Event::MESSAGE_BUFFERRED == static_cast<Event>(holdingEvent))
                     {
                         GLOG_DEBUG_L1("Data available to write...");
@@ -183,7 +218,7 @@ namespace gbase::net
                         //     printf("%s\n", data);
                         //     this->clientSocket.sendData(data);
                         // }
-                    }
+                    }*/
                 }
             }
         }
@@ -203,7 +238,7 @@ namespace gbase::net
         void send(T &bb) noexcept override
         {
             // GLOG_DEBUG_L1("Queueing message to send... {}", ss.str());
-            this->clientSocket.sendData(bb);
+            // this->clientSocket.sendData(bb);
             // std::string str = ss.str(); // make a copy to ensure data validity
             // outgoingMsgQueue.push(str.c_str());
         };
@@ -212,7 +247,7 @@ namespace gbase::net
         {
             // GLOG_DEBUG_L1("Queueing message to send... {}", ss.str());
 
-            this->clientSocket.sendData(bb);
+            // this->clientSocket.sendData(bb);
 
             // std::string str = ss.str(); // make a copy to ensure data validity
             // outgoingMsgQueue.push(str.c_str());
@@ -222,7 +257,7 @@ namespace gbase::net
         {
             // std::string str{ss.str()};
             // GLOG_DEBUG_L1("Queueing message to send temp - {}", str);
-            this->clientSocket.sendData(bb);
+            // this->clientSocket.sendData(bb);
             // printf("%p\n", str.c_str());
             // char* msg = new char[str.size() + 1];
             // strncpy(msg, str.c_str(), str.size());
