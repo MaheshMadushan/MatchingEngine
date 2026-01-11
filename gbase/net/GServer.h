@@ -9,6 +9,7 @@
 #include <type_traits>
 #include <utility>
 #include <Defs.h>
+#include <gProtocol.hpp>
 
 namespace gbase::net
 {
@@ -28,6 +29,8 @@ namespace gbase::net
         std::vector<G_SOCKETFD> m_clientSockets;
 
         int port;
+
+        gbase::net::gProtocol::v1::server::Protocol server_protocol{};
 
     public:
         GServer(int port = 8080) : port(port) {};

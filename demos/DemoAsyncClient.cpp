@@ -11,10 +11,10 @@ class DemoClient : public gbase::net::GAsyncClient<gbase::ByteBuffer<std::byte>>
 
 int main()
 {
-    // std::unique_ptr<
-    //     gbase::net::GClient<gbase::net::GEventHandlingMode::ASYNC, gbase::ByteBuffer<std::byte>>>
-    //     clientPtr = std::make_unique<gbase::net::GAsyncClient<gbase::ByteBuffer<std::byte>>>();
-    // clientPtr->connect("127.0.0.1", 8080);
+    std::unique_ptr<gbase::net::GAsyncClient<gbase::ByteBuffer<std::byte>>>
+        clientPtr = std::make_unique<gbase::net::GAsyncClient<gbase::ByteBuffer<std::byte>>>();
+    clientPtr->connect("127.0.0.1", 9999);
+    clientPtr->start();
 
     // std::thread clientThread([&clientPtr]()
     //                          {

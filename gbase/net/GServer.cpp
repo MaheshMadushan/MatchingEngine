@@ -33,7 +33,7 @@ void GSyncServer<>::start()
                 GLOG_DEBUG_L1("Client Connected")
                 G_SOCKETFD client = m_serverSocket.accept();
                 m_clientSockets.push_back(client);
-                // server::protocol::onClientConnect(client)
+                server_protocol.onClientConnect(client);
                 continue;
             }
 
@@ -45,34 +45,32 @@ void GSyncServer<>::start()
                 {
                     std::shared_ptr<ByteBuffer<std::byte>> p_byteBuffer {m_serverSocket.receive(client_fd)};
                     GLOG_DEBUG_L1("read from client {}", client_fd);
-                    print_byte_array(*p_byteBuffer.get());
+                    gbase::print_byte_array(*p_byteBuffer.get());
                     if (p_byteBuffer.get()->get_filled_size() == 0)
                     {
                         GLOG_DEBUG_L1("client {} closed connection", client_fd);
                         m_serverSocket.closeSocket(client_fd);
                         m_clientSockets.erase(m_clientSockets.begin() + index - 1);
+                        server_protocol.onClientDisconnect(client_fd);
                         continue;
                     }
-                    // ByteBuffer<std::byte> send_bytes{server::protocol::applyOnReceive(client_fd, p_byteBuffer.get())}
-                    // if (send_bytes.not_empty())
-                    //      to_send.push(send_bytes); 
+                    ByteBuffer<std::byte> recieved_bytes{server_protocol.recieve(client_fd, *p_byteBuffer)};
+                    if (recieved_bytes.get_filled_size() > 0)
+                        GLOG_INFO("client data {}", client_fd);
                     // this way protocol is IPC method agnostic
                 }
 
                 if (FD_ISSET(client_fd, &writefds) == true)
                 {
-                    // protocol::state state{server::protocol::applyOnSend(client_fd, p_byteBuffer.get())}
-                    // switch (state) {
-                    //      case protocol::state::APPLICATION_DATA_COMPLETE:
-                    //          ByteBuffer<std::byte> send_bytes{server::protocol::applyOnSend(client_fd, application::handle(data))}
-                    //          m_serverSocket.send(client_fd, send_bytes);
-                    //          break;
-                    //      case protocol::state::APPLICATION_DATA_WAITING:
-                    //      case protocol::state::ACK_WAITING:
-                    //          break;
-                    //          
-                    // }
-                    // 
+                    std::string static_message = "Hi from server";
+                    ByteBuffer<std::byte> static_message_bytes;
+                    static_message_bytes.append(static_message.c_str(), static_message.size());
+                    ByteBuffer<std::byte> bytes_to_send{server_protocol.send(client_fd, static_message_bytes)};
+                    
+                    if (bytes_to_send.get_filled_size() > 0){
+                        GLOG_DEBUG_L1("send to client {}", client_fd);
+                        gbase::print_byte_array(bytes_to_send);
+                        m_serverSocket.send(client_fd, bytes_to_send);}
                     // this way protocol is IPC method agnostic
                 }
             }
