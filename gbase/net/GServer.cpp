@@ -3,7 +3,7 @@
 
 using namespace gbase::net::l1;
 using namespace gbase::net;
-template<>
+template <>
 void GSyncServer<>::start()
 {
     GLOG_DEBUG_L1("Sync Server loop started");
@@ -40,12 +40,11 @@ void GSyncServer<>::start()
             int index = 0;
             for (auto client_fd : m_clientSockets)
             {
+                std::string static_message{""};
                 ++index;
                 if (FD_ISSET(client_fd, &readfds) == true)
                 {
-                    std::shared_ptr<ByteBuffer<std::byte>> p_byteBuffer {m_serverSocket.receive(client_fd)};
-                    GLOG_DEBUG_L1("read from client {}", client_fd);
-                    gbase::print_byte_array(*p_byteBuffer.get());
+                    std::shared_ptr<ByteBuffer<std::byte>> p_byteBuffer{m_serverSocket.receive(client_fd)};
                     if (p_byteBuffer.get()->get_filled_size() == 0)
                     {
                         GLOG_DEBUG_L1("client {} closed connection", client_fd);
@@ -56,21 +55,24 @@ void GSyncServer<>::start()
                     }
                     ByteBuffer<std::byte> recieved_bytes{server_protocol.recieve(client_fd, *p_byteBuffer)};
                     if (recieved_bytes.get_filled_size() > 0)
-                        GLOG_INFO("client data {}", client_fd);
+                    {
+                        std::string static_message = "Data recieved dear clientele.";
+                        GLOG_INFO("client data from client {} - {}", client_fd, gbase::byte_array_2_string(*p_byteBuffer.get()));
+                    }
                     // this way protocol is IPC method agnostic
                 }
 
                 if (FD_ISSET(client_fd, &writefds) == true)
                 {
-                    std::string static_message = "Hi from server";
                     ByteBuffer<std::byte> static_message_bytes;
-                    static_message_bytes.append(static_message.c_str(), static_message.size());
+                    static_message.size() > 0 ? static_message_bytes.append(static_message.c_str(), static_message.size()) : static_message_bytes.release();
                     ByteBuffer<std::byte> bytes_to_send{server_protocol.send(client_fd, static_message_bytes)};
-                    
-                    if (bytes_to_send.get_filled_size() > 0){
-                        GLOG_DEBUG_L1("send to client {}", client_fd);
-                        gbase::print_byte_array(bytes_to_send);
-                        m_serverSocket.send(client_fd, bytes_to_send);}
+
+                    if (bytes_to_send.get_filled_size() > 0)
+                    {
+                        GLOG_DEBUG_L1("send to client {} - data {}", client_fd, gbase::byte_arra_as_string(bytes_to_send));
+                        m_serverSocket.send(client_fd, bytes_to_send);
+                    }
                     // this way protocol is IPC method agnostic
                 }
             }
@@ -78,7 +80,7 @@ void GSyncServer<>::start()
     }
 }
 
-template<>
+template <>
 void GAsyncServer<>::start()
 {
     int maxfd = 0;
@@ -91,7 +93,7 @@ void GAsyncServer<>::start()
         FD_SET(m_serverSocket.getSocketFileDescriptor(), &readfds);
         FD_SET(eventNotifyingFileDiscriptor, &readfds);
         maxfd = eventNotifyingFileDiscriptor;
-        for (const auto& client_fd : m_clientSockets)
+        for (const auto &client_fd : m_clientSockets)
         {
             FD_SET(client_fd, &readfds);
             FD_SET(client_fd, &writefds);
@@ -128,7 +130,7 @@ void GAsyncServer<>::start()
                 ++index;
                 if (FD_ISSET(client_fd, &readfds) == true)
                 {
-                    std::shared_ptr<ByteBuffer<std::byte>> p_byteBuffer {m_serverSocket.receive()};
+                    std::shared_ptr<ByteBuffer<std::byte>> p_byteBuffer{m_serverSocket.receive()};
                     GLOG_DEBUG_L1("read from client {}", client_fd);
                     if (p_byteBuffer.get()->get_filled_size() == 0)
                     {
@@ -152,7 +154,7 @@ void GAsyncServer<>::start()
                     auto it = outgoingMsgBuffer.find(client_fd); // replace with lock free queue
                     if (it == outgoingMsgBuffer.end() || it->second.empty() == true)
                         continue;
-                    const auto& byte_buffer = it->second.front();
+                    const auto &byte_buffer = it->second.front();
                     GSocket::send(client_fd, byte_buffer);
                     it->second.pop();
                 }
@@ -162,7 +164,7 @@ void GAsyncServer<>::start()
     }
 }
 
-template<>
+template <>
 void GAsyncServer<>::send(const G_SOCKETFD &client, const ByteBuffer<std::byte> &data)
 {
     // Cache the iterator to avoid repeated lookups

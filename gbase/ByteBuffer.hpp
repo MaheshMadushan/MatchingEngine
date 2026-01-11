@@ -248,5 +248,26 @@ namespace gbase
         std::cout << "]" << std::endl;
     }
 
+    inline auto byte_arra_as_string(const gbase::ByteBuffer<std::byte> &byte_array) -> std::string
+    {
+        std::string str{"["};
+        for (unsigned int i = 0; i < byte_array.get_filled_size(); i++)
+        {
+            str.append(std::to_string(std::to_integer<int>(byte_array.get().get()[i])));
+            (i < byte_array.get_filled_size() - 1) ? str.append(1,',') : str.append(1,']');
+        }
+        return str;
+    }
+
+    inline auto byte_array_2_string(const gbase::ByteBuffer<std::byte> &byte_array) -> std::string
+    {
+        std::string str{};
+        for (unsigned int i = 0; i < byte_array.get_filled_size(); i++)
+        {
+            str.append(1,static_cast<char>(byte_array.get().get()[i]));
+        }
+        return str;
+    }
+
     // TODO : create byte buffer iterator for constrained access to underlying buffer
 }

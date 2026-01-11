@@ -132,6 +132,7 @@ namespace gbase::net
             int maxfd = 0;
             eventfd_t holdingEvent = 0;
             eventNotifyingFileDiscriptor = eventfd(0, EFD_SEMAPHORE);
+            std::string static_message = "Hi from server";
             while (true)
             {
                 FD_ZERO(&writefds);
@@ -151,8 +152,7 @@ namespace gbase::net
                     if (FD_ISSET(this->clientSocket.getSocketFileDescriptor(), &readfds) == true)
                     {
                         std::shared_ptr<ByteBuffer<std::byte>> p_byteBuffer{this->clientSocket.receive(this->clientSocket.getSocketFileDescriptor())};
-                        GLOG_INFO("read from client {}", this->clientSocket.getSocketFileDescriptor());
-                        gbase::print_byte_array(*p_byteBuffer.get());
+                        GLOG_DEBUG_L1("read from client {}", this->clientSocket.getSocketFileDescriptor());
                         if (p_byteBuffer.get()->get_filled_size() == 0)
                         {
                             GLOG_DEBUG_L1("client {} closed connection", this->clientSocket.getSocketFileDescriptor());
@@ -163,7 +163,7 @@ namespace gbase::net
                         }
                         ByteBuffer<std::byte> recieved_bytes{this->client_protocol.recieve(this->clientSocket.getSocketFileDescriptor(), *p_byteBuffer)};
                         if (recieved_bytes.get_filled_size() > 0)
-                            GLOG_DEBUG_L1("client data {}", this->clientSocket.getSocketFileDescriptor());
+                            GLOG_DEBUG_L1("recieved data from server sent data - {}", gbase::byte_array_2_string(recieved_bytes));
                         // this way protocol is IPC method agnostic
                     }
 
@@ -172,10 +172,10 @@ namespace gbase::net
                         // std::string static_message = "Hi from server";
                         // GLOG_INFO("send to client {}", static_message)
                         ByteBuffer<std::byte> static_message_bytes;
-                        // static_message_bytes.append(static_message.c_str(), static_message.size());
+                        static_message.size() > 0 ? static_message_bytes.append(static_message.c_str(), static_message.size()) : static_message_bytes.release();
+                        static_message.clear();
                         ByteBuffer<std::byte> bytes_to_send{this->client_protocol.send(this->clientSocket.getSocketFileDescriptor(), static_message_bytes)};
-                        GLOG_INFO("send to client {}", this->clientSocket.getSocketFileDescriptor());
-                        gbase::print_byte_array(bytes_to_send);
+                        GLOG_DEBUG_L1("send to client {} - data {}", this->clientSocket.getSocketFileDescriptor(), gbase::byte_arra_as_string(bytes_to_send));
                         if (bytes_to_send.get_filled_size() > 0)
                             this->clientSocket.send(this->clientSocket.getSocketFileDescriptor(), bytes_to_send);
                         // this way protocol is IPC method agnostic
@@ -235,16 +235,14 @@ namespace gbase::net
     protected:
         void onResponse([[maybe_unused]] std::string &&message) override {};
 
-        void send(T &bb) noexcept override
-        {
+        void send(T &bb) noexcept override {
             // GLOG_DEBUG_L1("Queueing message to send... {}", ss.str());
             // this->clientSocket.sendData(bb);
             // std::string str = ss.str(); // make a copy to ensure data validity
             // outgoingMsgQueue.push(str.c_str());
         };
 
-        void send(const T &bb) noexcept override
-        {
+        void send(const T &bb) noexcept override {
             // GLOG_DEBUG_L1("Queueing message to send... {}", ss.str());
 
             // this->clientSocket.sendData(bb);
@@ -253,8 +251,7 @@ namespace gbase::net
             // outgoingMsgQueue.push(str.c_str());
         };
 
-        void send(T &&bb) noexcept override
-        {
+        void send(T &&bb) noexcept override {
             // std::string str{ss.str()};
             // GLOG_DEBUG_L1("Queueing message to send temp - {}", str);
             // this->clientSocket.sendData(bb);

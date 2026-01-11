@@ -169,11 +169,13 @@ namespace gbase::net::gProtocol::v1
 
             [[nodiscard]] auto send(ClientId client_id, gbase::ByteBuffer<std::byte> &data) -> gbase::ByteBuffer<std::byte>
             {
-                // GLOG_INFO("Server protocol send called client {}", client_id)
+                GLOG_DEBUG_L1("Server protocol send called client {}", client_id)
                 __header_and_proto_version__ = 0x0;
+                __size_of_data__ = 0x0;
                 if (data.get_filled_size() > 0)
                 {
                     // application has data to sent
+                    GLOG_DEBUG_L1("application has data for client {}", client_id)
                     __size_of_data__ = data.get_filled_size(); // fix warning
                     __header_and_proto_version__ |= (uint16_t)START_DATA_TRANSMISSION << 8 | __G_PROTOCOL_MAJOR_VERSION__;
 
@@ -187,6 +189,7 @@ namespace gbase::net::gProtocol::v1
                     {
                         q->second.push({__size_of_data__, TrasnmittingDataType::PROTOCOL_DATA, std::move(war_head)});
                         q->second.push({__size_of_data__, TrasnmittingDataType::APPLICATION_DATA, std::move(data)});
+                        GLOG_DEBUG_L1("queue size for client {} is {}", client_id, q->second.size())
                     }
                     else
                     {
@@ -198,10 +201,12 @@ namespace gbase::net::gProtocol::v1
                 }
 
                 __header_and_proto_version__ = 0x0;
+                __size_of_data__ = 0x0;
                 gbase::ByteBuffer<std::byte> empty_data;
                 if (const auto &itr = __client_states.find(client_id); itr != __client_states.end())
                 {
                     State client_state = itr->second;
+                    GLOG_DEBUG_L1("Server protocol client handle {} is in client state {}", client_id, static_cast<int>(client_state))
                     switch (client_state)
                     {
                     case State::CONNECTED:
@@ -278,25 +283,24 @@ namespace gbase::net::gProtocol::v1
                 {
                     GLOG_ERROR("No client found for id {}", client_id)
                 }
-                __size_of_data__ = 0x0;
-                __header_and_proto_version__ = 0x0;
                 return empty_data;
             };
 
             [[nodiscard]] auto recieve(ClientId client_id, gbase::ByteBuffer<std::byte> &data) -> gbase::ByteBuffer<std::byte>
             {
-                GLOG_INFO("Server protocol new called client {}", client_id)
                 // WARNING : TODO make sure it is a header (handle)
                 data.read<sizeof(uint16_t)>(reinterpret_cast<char *>(&__header_and_proto_version__));
                 gbase::ByteBuffer<std::byte> ack;
 
                 uint8_t header = (uint8_t)(__header_and_proto_version__ >> 8);
                 __header_and_proto_version__ = 0x0;
+                __size_of_data__ = 0x0;
                 gbase::ByteBuffer<std::byte> empty_data;
                 switch (header)
                 {
                 // client side intiations
                 case START_SESSION: // client starts
+                    GLOG_DEBUG_L1("Start of session")
                     __header_and_proto_version__ |= (uint16_t)START_SESSION_ACK << 8 | __G_PROTOCOL_MAJOR_VERSION__;
 
                     // send sot
@@ -313,6 +317,7 @@ namespace gbase::net::gProtocol::v1
                     }
                     break;
                 case START_DATA_TRANSMISSION: // client starts
+                    GLOG_DEBUG_L1("Start of data transmission")
                     data.read<sizeof(uint16_t)>(reinterpret_cast<char *>(&__size_of_data__));
 
                     if (const auto &itr = __data_waiting_to_receive.find(client_id); itr == __data_waiting_to_receive.end())
@@ -338,13 +343,13 @@ namespace gbase::net::gProtocol::v1
                     }
                     break;
                 case DATA_ARRIVAL:
+                    GLOG_DEBUG_L1("Data arrived")
                     if (const auto &itr = __client_states.find(client_id); itr != __client_states.end())
                     {
                         
                         auto &client_state = itr->second;
                         if (client_state == State::APPLICATION_DATA_RECEIVING)
                         {
-                            GLOG_DEBUG_L1("Data arrived")
                             if (const auto &itr = __data_waiting_to_receive.find(client_id); itr != __data_waiting_to_receive.end())
                             {
                                 data.read<sizeof(uint16_t)>(reinterpret_cast<char *>(&__size_of_data__));GLOG_DEBUG_L1("Data size {}", __size_of_data__)
@@ -356,7 +361,6 @@ namespace gbase::net::gProtocol::v1
 
                                 gbase::ByteBuffer<std::byte> received_data;
                                 received_data.append(static_cast<const char *>(app_data), __size_of_data__);
-                                gbase::print_byte_array(received_data);
                                 itr->second.push({ack.get_filled_size(), TrasnmittingDataType::APPLICATION_DATA, std::move(received_data)});
 
                                 delete[] app_data;
@@ -367,6 +371,7 @@ namespace gbase::net::gProtocol::v1
                     }
                     break;
                 case END_DATA_TRANSMISSION: // client ends
+                    GLOG_DEBUG_L1("End of trasnmission")
                     __header_and_proto_version__ |= (uint16_t)END_DATA_TRANSMISSION_ACK << 8 | __G_PROTOCOL_MAJOR_VERSION__;
 
                     // send sot
@@ -393,6 +398,7 @@ namespace gbase::net::gProtocol::v1
                     }
                     break;
                 case END_SESSION: // client ends
+                    GLOG_DEBUG_L1("End of session")
                     __header_and_proto_version__ |= (uint16_t)END_SESSION_ACK << 8 | __G_PROTOCOL_MAJOR_VERSION__;
 
                     // send sot
@@ -411,6 +417,7 @@ namespace gbase::net::gProtocol::v1
 
                 // // server side initiated actions acknowledgment handling
                 case START_DATA_TRANSMISSION_ACK:
+                    GLOG_DEBUG_L1("Start of transmission acked by client")
                     if (const auto &itr = __client_states.find(client_id); itr != __client_states.end())
                     {
                         auto &client_state = itr->second;
@@ -421,6 +428,7 @@ namespace gbase::net::gProtocol::v1
                     }
                     break;
                 case DATA_RECEIVED_BY_CLIENT:
+                    GLOG_DEBUG_L1("Data received by client")
                     if (const auto &itr = __client_states.find(client_id); itr != __client_states.end())
                     {
                         const auto &client_state = itr->second;
@@ -431,6 +439,7 @@ namespace gbase::net::gProtocol::v1
                     }
                     break;
                 case END_DATA_TRANSMISSION_ACK:
+                    GLOG_DEBUG_L1("End of trasnmission acked by client")
                     if (const auto &itr = __client_states.find(client_id); itr != __client_states.end())
                     {
                         const auto &client_state = itr->second;
@@ -444,8 +453,6 @@ namespace gbase::net::gProtocol::v1
                 default:
                     break;
                 }
-                __size_of_data__ = 0x0;
-                __header_and_proto_version__ = 0x0;
                 return empty_data;
             };
         };
