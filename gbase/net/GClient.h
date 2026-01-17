@@ -132,7 +132,7 @@ namespace gbase::net
             int maxfd = 0;
             eventfd_t holdingEvent = 0;
             eventNotifyingFileDiscriptor = eventfd(0, EFD_SEMAPHORE);
-            std::string static_message = "Hi from server";
+            std::string static_message = "Hi from client";
             while (true)
             {
                 FD_ZERO(&writefds);
@@ -152,7 +152,6 @@ namespace gbase::net
                     if (FD_ISSET(this->clientSocket.getSocketFileDescriptor(), &readfds) == true)
                     {
                         std::shared_ptr<ByteBuffer<std::byte>> p_byteBuffer{this->clientSocket.receive(this->clientSocket.getSocketFileDescriptor())};
-                        GLOG_DEBUG_L1("read from client {}", this->clientSocket.getSocketFileDescriptor());
                         if (p_byteBuffer.get()->get_filled_size() == 0)
                         {
                             GLOG_DEBUG_L1("client {} closed connection", this->clientSocket.getSocketFileDescriptor());
@@ -161,6 +160,7 @@ namespace gbase::net
                             this->client_protocol.onClientDisconnect(this->clientSocket.getSocketFileDescriptor());
                             continue;
                         }
+                        GLOG_DEBUG_L1("recieved from client {} - data {}", this->clientSocket.getSocketFileDescriptor(), gbase::byte_arra_as_string(*p_byteBuffer));
                         ByteBuffer<std::byte> recieved_bytes{this->client_protocol.recieve(this->clientSocket.getSocketFileDescriptor(), *p_byteBuffer)};
                         if (recieved_bytes.get_filled_size() > 0)
                             GLOG_DEBUG_L1("recieved data from server sent data - {}", gbase::byte_array_2_string(recieved_bytes));
@@ -169,8 +169,6 @@ namespace gbase::net
 
                     if (FD_ISSET(this->clientSocket.getSocketFileDescriptor(), &writefds) == true)
                     {
-                        // std::string static_message = "Hi from server";
-                        // GLOG_INFO("send to client {}", static_message)
                         ByteBuffer<std::byte> static_message_bytes;
                         static_message.size() > 0 ? static_message_bytes.append(static_message.c_str(), static_message.size()) : static_message_bytes.release();
                         static_message.clear();

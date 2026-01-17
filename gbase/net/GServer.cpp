@@ -7,6 +7,7 @@ template <>
 void GSyncServer<>::start()
 {
     GLOG_DEBUG_L1("Sync Server loop started");
+    bool _data_to_sent_ = false;
     while (true)
     {
         FD_ZERO(&writefds);
@@ -25,7 +26,7 @@ void GSyncServer<>::start()
         tv.tv_sec = 10;
         tv.tv_usec = 500000;
         int rv = -1;
-        rv = select(maxfd + 1, &readfds, &writefds, NULL, &tv);
+        rv = select(maxfd + 1, &readfds, NULL, NULL, &tv);
         if (rv != -1)
         {
             if (FD_ISSET(m_serverSocket.getSocketFileDescriptor(), &readfds))
@@ -53,11 +54,12 @@ void GSyncServer<>::start()
                         server_protocol.onClientDisconnect(client_fd);
                         continue;
                     }
+                    GLOG_DEBUG_L1("recieved from client {} - data {}", client_fd, gbase::byte_arra_as_string(*p_byteBuffer));
                     ByteBuffer<std::byte> recieved_bytes{server_protocol.recieve(client_fd, *p_byteBuffer)};
                     if (recieved_bytes.get_filled_size() > 0)
                     {
-                        std::string static_message = "Data recieved dear clientele.";
-                        GLOG_INFO("client data from client {} - {}", client_fd, gbase::byte_array_2_string(*p_byteBuffer.get()));
+                        static_message = "Data recieved dear clientele.";
+                        GLOG_INFO("client data from client {} - {}", client_fd, gbase::byte_array_2_string(recieved_bytes));
                     }
                     // this way protocol is IPC method agnostic
                 }
