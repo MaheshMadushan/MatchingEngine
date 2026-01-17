@@ -7,7 +7,7 @@ template <>
 void GSyncServer<>::start()
 {
     GLOG_DEBUG_L1("Sync Server loop started");
-    bool _data_to_sent_ = false;
+    bool _should_monitor_writefds_ = false;
     while (true)
     {
         FD_ZERO(&writefds);
@@ -26,7 +26,7 @@ void GSyncServer<>::start()
         tv.tv_sec = 10;
         tv.tv_usec = 500000;
         int rv = -1;
-        rv = select(maxfd + 1, &readfds, NULL, NULL, &tv);
+        rv = select(maxfd + 1, &readfds, _should_monitor_writefds_ ? &writefds : NULL, NULL, &tv);
         if (rv != -1)
         {
             if (FD_ISSET(m_serverSocket.getSocketFileDescriptor(), &readfds))
@@ -34,7 +34,7 @@ void GSyncServer<>::start()
                 GLOG_DEBUG_L1("Client Connected")
                 G_SOCKETFD client = m_serverSocket.accept();
                 m_clientSockets.push_back(client);
-                server_protocol.onClientConnect(client);
+                protocol.onConnect(client);
                 continue;
             }
 
@@ -51,14 +51,15 @@ void GSyncServer<>::start()
                         GLOG_DEBUG_L1("client {} closed connection", client_fd);
                         m_serverSocket.closeSocket(client_fd);
                         m_clientSockets.erase(m_clientSockets.begin() + index - 1);
-                        server_protocol.onClientDisconnect(client_fd);
+                        protocol.onDisconnect(client_fd);
                         continue;
                     }
                     GLOG_DEBUG_L1("recieved from client {} - data {}", client_fd, gbase::byte_arra_as_string(*p_byteBuffer));
-                    ByteBuffer<std::byte> recieved_bytes{server_protocol.recieve(client_fd, *p_byteBuffer)};
+                    ByteBuffer<std::byte> recieved_bytes{protocol.recieve(client_fd, *p_byteBuffer)};
                     if (recieved_bytes.get_filled_size() > 0)
                     {
                         static_message = "Data recieved dear clientele.";
+                        _should_monitor_writefds_ = true;
                         GLOG_INFO("client data from client {} - {}", client_fd, gbase::byte_array_2_string(recieved_bytes));
                     }
                     // this way protocol is IPC method agnostic
@@ -66,15 +67,29 @@ void GSyncServer<>::start()
 
                 if (FD_ISSET(client_fd, &writefds) == true)
                 {
+                    gbase::net::gProtocol::State clientState = protocol.getState(client_fd);
                     ByteBuffer<std::byte> static_message_bytes;
-                    static_message.size() > 0 ? static_message_bytes.append(static_message.c_str(), static_message.size()) : static_message_bytes.release();
-                    ByteBuffer<std::byte> bytes_to_send{server_protocol.send(client_fd, static_message_bytes)};
+                    if (clientState == gbase::net::gProtocol::State::CONNECTED || clientState == gbase::net::gProtocol::State::IDLE)
+                    {
+                        static_message.size() > 0 ? static_message_bytes.append(static_message.c_str(), static_message.size()) : static_message_bytes.release();
+                    }
+                    ByteBuffer<std::byte> bytes_to_send{protocol.send(client_fd, static_message_bytes)};
 
                     if (bytes_to_send.get_filled_size() > 0)
                     {
                         GLOG_DEBUG_L1("send to client {} - data {}", client_fd, gbase::byte_arra_as_string(bytes_to_send));
                         m_serverSocket.send(client_fd, bytes_to_send);
                     }
+
+                    if (protocol.isClientHasDataToSent(client_fd))
+                    {
+                        _should_monitor_writefds_ = true;
+                    }
+                    else
+                    {
+                        _should_monitor_writefds_ = false;
+                    }
+
                     // this way protocol is IPC method agnostic
                 }
             }

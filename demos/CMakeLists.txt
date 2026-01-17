@@ -16,9 +16,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Boost)
 
-file(GLOB_RECURSE SOURCES_FILES
-    ${CMAKE_SOURCE_DIR}/src/matching/gbase/net/*.cpp
-)
 
 add_executable(
     server

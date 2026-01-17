@@ -50,7 +50,7 @@ namespace gbase::net
                 exit(1);
                 return;
             }
-            client_protocol.onClientConnect(clientSocket.getSocketFileDescriptor());
+            client_protocol.onConnect(clientSocket.getSocketFileDescriptor());
         }
 
         template <typename U = T>
@@ -73,7 +73,7 @@ namespace gbase::net
 
         static constexpr GEventHandlingMode m_serverMode{E};
         GSocket clientSocket;
-        gbase::net::gProtocol::v1::server::Protocol client_protocol{};
+        gbase::net::gProtocol::Protocol client_protocol{};
     };
 
     template <typename T>
@@ -133,6 +133,7 @@ namespace gbase::net
             eventfd_t holdingEvent = 0;
             eventNotifyingFileDiscriptor = eventfd(0, EFD_SEMAPHORE);
             std::string static_message = "Hi from client";
+            bool _should_monitor_writefds_ = false;
             while (true)
             {
                 FD_ZERO(&writefds);
@@ -146,7 +147,8 @@ namespace gbase::net
                 tv.tv_sec = 10;
                 tv.tv_usec = 500000;
                 int rv = -1;
-                rv = select(maxfd + 1, &readfds, holdingEvent == Event::MESSAGE_BUFFERRED ? &writefds : NULL, NULL, &tv);
+                // rv = select(maxfd + 1, &readfds, holdingEvent == Event::MESSAGE_BUFFERRED ? &writefds : NULL, NULL, &tv);
+                rv = select(maxfd + 1, &readfds, _should_monitor_writefds_ ? &writefds : NULL, NULL, &tv);
                 if (rv != -1)
                 {
                     if (FD_ISSET(this->clientSocket.getSocketFileDescriptor(), &readfds) == true)
@@ -157,7 +159,7 @@ namespace gbase::net
                             GLOG_DEBUG_L1("client {} closed connection", this->clientSocket.getSocketFileDescriptor());
                             this->clientSocket.closeSocket(this->clientSocket.getSocketFileDescriptor());
                             // m_clientSockets.erase(m_clientSockets.begin() + index - 1);
-                            this->client_protocol.onClientDisconnect(this->clientSocket.getSocketFileDescriptor());
+                            this->client_protocol.onDisconnect(this->clientSocket.getSocketFileDescriptor());
                             continue;
                         }
                         GLOG_DEBUG_L1("recieved from client {} - data {}", this->clientSocket.getSocketFileDescriptor(), gbase::byte_arra_as_string(*p_byteBuffer));
@@ -169,13 +171,25 @@ namespace gbase::net
 
                     if (FD_ISSET(this->clientSocket.getSocketFileDescriptor(), &writefds) == true)
                     {
+                        gbase::net::gProtocol::State clientState = this->client_protocol.getState(this->clientSocket.getSocketFileDescriptor());
                         ByteBuffer<std::byte> static_message_bytes;
-                        static_message.size() > 0 ? static_message_bytes.append(static_message.c_str(), static_message.size()) : static_message_bytes.release();
-                        static_message.clear();
+                        if (clientState == gbase::net::gProtocol::State::CONNECTED || clientState == gbase::net::gProtocol::State::IDLE)
+                        {
+                            static_message.size() > 0 ? static_message_bytes.append(static_message.c_str(), static_message.size()) : static_message_bytes.release();
+                        }
                         ByteBuffer<std::byte> bytes_to_send{this->client_protocol.send(this->clientSocket.getSocketFileDescriptor(), static_message_bytes)};
                         GLOG_DEBUG_L1("send to client {} - data {}", this->clientSocket.getSocketFileDescriptor(), gbase::byte_arra_as_string(bytes_to_send));
                         if (bytes_to_send.get_filled_size() > 0)
                             this->clientSocket.send(this->clientSocket.getSocketFileDescriptor(), bytes_to_send);
+
+                        if (this->client_protocol.isClientHasDataToSent(this->clientSocket.getSocketFileDescriptor()))
+                        {
+                            _should_monitor_writefds_ = true;
+                        }
+                        else
+                        {
+                            _should_monitor_writefds_ = false;
+                        }
                         // this way protocol is IPC method agnostic
                     }
                     /*GLOG_DEBUG_L1("Select returned {}", rv);

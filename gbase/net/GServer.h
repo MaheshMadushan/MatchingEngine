@@ -30,7 +30,7 @@ namespace gbase::net
 
         int port;
 
-        gbase::net::gProtocol::v1::server::Protocol server_protocol{};
+        gbase::net::gProtocol::Protocol protocol{};
 
     public:
         GServer(int port = 8080) : port(port) {};

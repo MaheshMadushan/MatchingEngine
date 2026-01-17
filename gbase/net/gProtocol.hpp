@@ -77,7 +77,7 @@ constexpr uint8_t __G_PROTOCOL_MAJOR_VERSION__ = 1;
 
 
 */
-namespace gbase::net::gProtocol::v1
+namespace gbase::net::gProtocol
 {
 
     static constexpr uint8_t START_SESSION = static_cast<uint8_t>(0x1);
@@ -91,68 +91,69 @@ namespace gbase::net::gProtocol::v1
     static constexpr uint8_t DATA_ARRIVAL = static_cast<uint8_t>(0x9);
     static constexpr uint8_t DATA_RECEIVED_BY_CLIENT = static_cast<uint8_t>(0xA);
 
-    namespace server
+    enum State : int
     {
-        enum State : int
-        {
-            APPLICATION_DATA_TRANSMISSION_COMPLETED,
-            APPLICATION_DATA_TRANSMITTING,
-            APPLICATION_DATA_RECEIVING,
-            APPLICATION_DATA_RECEPTION_COMPLETED,
-            START_APPLICATION_DATA_TRANSMISSION_ACK_WAITING,
-            START_APPLICATION_DATA_TRANSMISSION_ACK_RECEIVED,
-            END_APPLICATION_DATA_TRANSMISSION_ACK_WAITING,
-            END_APPLICATION_DATA_TRANSMISSION_ACK_RECEIVED,
+        APPLICATION_DATA_TRANSMISSION_COMPLETED,
+        APPLICATION_DATA_TRANSMITTING,
+        APPLICATION_DATA_RECEIVING,
+        APPLICATION_DATA_RECEPTION_COMPLETED,
+        START_APPLICATION_DATA_TRANSMISSION_ACK_WAITING,
+        START_APPLICATION_DATA_TRANSMISSION_ACK_RECEIVED,
+        END_APPLICATION_DATA_TRANSMISSION_ACK_WAITING,
+        END_APPLICATION_DATA_TRANSMISSION_ACK_RECEIVED,
 
-            CONNECTED,
-            IDLE
+        CONNECTED,
+        IDLE,
+
+        UNDEFINED
+    };
+
+    enum TrasnmittingDataType : int
+    {
+        APPLICATION_DATA,
+        PROTOCOL_DATA
+    };
+
+    class Protocol
+    {
+
+    private:
+        struct DataWithMetaData
+        {
+            size_t __size_of_data__ = 0x0;
+            TrasnmittingDataType _data_type_;
+            gbase::ByteBuffer<std::byte> _data_;
         };
 
-        enum TrasnmittingDataType : int
-        {
-            APPLICATION_DATA,
-            PROTOCOL_DATA
-        };
+        using ClientId = int;
+        using QueueOfData = std::queue<DataWithMetaData>;
 
-        class Protocol
-        {
+        std::flat_map<ClientId, State> __client_states;
+        std::flat_map<ClientId, QueueOfData> __data_waiting_to_sent;
+        std::flat_map<ClientId, QueueOfData> __data_waiting_to_receive;
 
-        private:
-            struct DataWithMetaData
-            {
-                size_t __size_of_data__ = 0x0;
-                TrasnmittingDataType _data_type_;
-                gbase::ByteBuffer<std::byte> _data_;
-            };
+        uint16_t __header_and_proto_version__ = 0x0;
+        uint16_t __size_of_data__ = 0x0;
 
-            using ClientId = int;
-            using QueueOfData = std::queue<DataWithMetaData>;
+    public:
+        Protocol() = default;
+        ~Protocol() = default;
 
-            std::flat_map<ClientId, State> __client_states;
-            std::flat_map<ClientId, QueueOfData> __data_waiting_to_sent;
-            std::flat_map<ClientId, QueueOfData> __data_waiting_to_receive;
+        // for testing
+        [[nodiscard]] auto getClientStates() const -> std::flat_map<ClientId, State>;
+        [[nodiscard]] auto getDataWaitingToSent() const -> std::flat_map<ClientId, QueueOfData>;
+        [[nodiscard]] auto getDataWaitingToRecieve() const -> std::flat_map<ClientId, QueueOfData>;
 
-            uint16_t __header_and_proto_version__ = 0x0;
-            uint16_t __size_of_data__ = 0x0;
+        [[nodiscard]] auto getState(ClientId client_id) const -> State;
+        [[nodiscard]] auto isClientHasDataToSent(ClientId client_id) const -> bool;
 
-        public:
-            Protocol() = default;
-            ~Protocol() = default;
+        auto shouldMonitorIPCChannelForSend(ClientId client_id) -> bool;
 
-            // for testing
-            [[nodiscard]] auto getClientStates() const -> std::flat_map<ClientId, State>;
+        void onConnect(ClientId client_id);
+        void onDisconnect(ClientId client_id);
 
-            [[nodiscard]] auto getDataWaitingToSent() const -> std::flat_map<ClientId, QueueOfData>;
-
-            [[nodiscard]] auto getDataWaitingToRecieve() const -> std::flat_map<ClientId, QueueOfData>;
-
-            void onClientConnect(ClientId client_id);
-
-            void onClientDisconnect(ClientId client_id);
-            [[nodiscard]] auto send(ClientId client_id, gbase::ByteBuffer<std::byte> &data) -> gbase::ByteBuffer<std::byte>;
-
-            [[nodiscard]] auto recieve(ClientId client_id, gbase::ByteBuffer<std::byte> &data) -> gbase::ByteBuffer<std::byte>;
-        };
-    } // namespace server
+        [[nodiscard]] auto send(ClientId client_id, gbase::ByteBuffer<std::byte> &data) -> gbase::ByteBuffer<std::byte>;
+        [[nodiscard]] auto recieve(ClientId client_id, gbase::ByteBuffer<std::byte> &data) -> gbase::ByteBuffer<std::byte>;
+    }; // namespace server
 
 } // namespace gbase::net::gProtocol

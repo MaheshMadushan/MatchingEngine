@@ -1,28 +1,28 @@
 #include <gProtocol.hpp>
 
-using namespace gbase::net::gProtocol::v1::server;
+using namespace gbase::net::gProtocol;
 
-[[nodiscard]] auto Protocol::getClientStates() const -> std::flat_map<Protocol::ClientId, State>
+[[nodiscard]] auto Protocol::getClientStates() const -> std::flat_map<ClientId, State>
 {
     return __client_states;
 }
 
-[[nodiscard]] auto Protocol::getDataWaitingToSent() const -> std::flat_map<Protocol::ClientId, Protocol::QueueOfData>
+[[nodiscard]] auto Protocol::getDataWaitingToSent() const -> std::flat_map<ClientId, QueueOfData>
 {
     return __data_waiting_to_sent;
 }
 
-[[nodiscard]] auto Protocol::getDataWaitingToRecieve() const -> std::flat_map<Protocol::ClientId, Protocol::QueueOfData>
+[[nodiscard]] auto Protocol::getDataWaitingToRecieve() const -> std::flat_map<ClientId, QueueOfData>
 {
     return __data_waiting_to_receive;
 }
 
-void Protocol::onClientConnect(Protocol::ClientId client_id)
+void Protocol::onConnect(Protocol::ClientId client_id)
 {
     __client_states.emplace(client_id, State::CONNECTED);
 }
 
-void Protocol::onClientDisconnect(Protocol::ClientId client_id)
+void Protocol::onDisconnect(Protocol::ClientId client_id)
 {
     __client_states.erase(client_id);
     __data_waiting_to_receive.erase(client_id);
@@ -318,3 +318,57 @@ void Protocol::onClientDisconnect(Protocol::ClientId client_id)
     }
     return empty_data;
 };
+
+auto Protocol::getState(ClientId client_id) const -> State
+{
+    if (const auto &itr = __client_states.find(client_id); itr != __client_states.end())
+    {
+        return itr->second;
+    }
+    return State::UNDEFINED;
+}
+
+auto Protocol::isClientHasDataToSent(ClientId client_id) const -> bool
+{
+    if (const auto &itr = __data_waiting_to_sent.find(client_id); itr != __data_waiting_to_sent.end())
+    {
+        auto &q = itr->second;
+        return q.empty();
+    }
+
+    return false;
+}
+
+auto gbase::net::gProtocol::Protocol::shouldMonitorIPCChannelForSend(ClientId client_id) -> bool
+{
+    bool ret = false;
+    if (const auto &itr = __client_states.find(client_id); itr != __client_states.end())
+    {
+        State client_state = itr->second;
+        GLOG_DEBUG_L1("Server protocol client handle {} is in client state {}", client_id, static_cast<int>(client_state))
+        switch (client_state)
+        {
+        case State::CONNECTED:
+        case State::IDLE:
+            ret = this->isClientHasDataToSent(client_id);
+            break;
+        case State::START_APPLICATION_DATA_TRANSMISSION_ACK_RECEIVED:
+            ret = true;
+            break;
+        case State::APPLICATION_DATA_TRANSMISSION_COMPLETED:
+            
+            break;
+        case State::APPLICATION_DATA_RECEPTION_COMPLETED:
+            
+            break;
+        case State::END_APPLICATION_DATA_TRANSMISSION_ACK_WAITING:   // concurrency control
+        case State::APPLICATION_DATA_TRANSMITTING:                   // concurrency control
+        case State::START_APPLICATION_DATA_TRANSMISSION_ACK_WAITING: // concurrency control
+            break;
+
+        default:
+            break;
+        }
+    }
+    return ret;
+}
