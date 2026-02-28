@@ -133,13 +133,17 @@ namespace gbase::net
             eventfd_t holdingEvent = 0;
             eventNotifyingFileDiscriptor = eventfd(0, EFD_SEMAPHORE);
             std::string static_message = "Hi from client";
-            bool _should_monitor_writefds_ = false;
+            bool _should_monitor_writefds_ = true;
             while (true)
             {
                 FD_ZERO(&writefds);
                 FD_ZERO(&readfds);
                 FD_SET(this->clientSocket.getSocketFileDescriptor(), &readfds);
-                FD_SET(this->clientSocket.getSocketFileDescriptor(), &writefds);
+                if ((static_message.length() > 0 || 
+                    this->client_protocol.shouldMonitorIPCChannelForWrite(this->clientSocket.getSocketFileDescriptor()) == true) ) {
+                        FD_SET(this->clientSocket.getSocketFileDescriptor(), &writefds);
+                    }
+                
                 FD_SET(eventNotifyingFileDiscriptor, &readfds);
                 maxfd = eventNotifyingFileDiscriptor;
 
@@ -164,8 +168,9 @@ namespace gbase::net
                         }
                         GLOG_DEBUG_L1("recieved from client {} - data {}", this->clientSocket.getSocketFileDescriptor(), gbase::byte_arra_as_string(*p_byteBuffer));
                         ByteBuffer<std::byte> recieved_bytes{this->client_protocol.recieve(this->clientSocket.getSocketFileDescriptor(), *p_byteBuffer)};
-                        if (recieved_bytes.get_filled_size() > 0)
-                            GLOG_DEBUG_L1("recieved data from server sent data - {}", gbase::byte_array_2_string(recieved_bytes));
+                        if (recieved_bytes.get_filled_size() > 0){
+                            static_message = "new message";
+                            GLOG_DEBUG_L1("recieved data from server sent data - {}", gbase::byte_array_2_string(recieved_bytes));}
                         // this way protocol is IPC method agnostic
                     }
 
@@ -176,21 +181,12 @@ namespace gbase::net
                         if (clientState == gbase::net::gProtocol::State::CONNECTED || clientState == gbase::net::gProtocol::State::IDLE)
                         {
                             static_message.size() > 0 ? static_message_bytes.append(static_message.c_str(), static_message.size()) : static_message_bytes.release();
+                            static_message = "";
                         }
                         ByteBuffer<std::byte> bytes_to_send{this->client_protocol.send(this->clientSocket.getSocketFileDescriptor(), static_message_bytes)};
                         GLOG_DEBUG_L1("send to client {} - data {}", this->clientSocket.getSocketFileDescriptor(), gbase::byte_arra_as_string(bytes_to_send));
                         if (bytes_to_send.get_filled_size() > 0)
                             this->clientSocket.send(this->clientSocket.getSocketFileDescriptor(), bytes_to_send);
-
-                        if (this->client_protocol.isClientHasDataToSent(this->clientSocket.getSocketFileDescriptor()))
-                        {
-                            _should_monitor_writefds_ = true;
-                        }
-                        else
-                        {
-                            _should_monitor_writefds_ = false;
-                        }
-                        // this way protocol is IPC method agnostic
                     }
                     /*GLOG_DEBUG_L1("Select returned {}", rv);
                     if (FD_ISSET(eventNotifyingFileDiscriptor, &readfds) &&

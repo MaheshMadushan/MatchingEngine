@@ -87,14 +87,15 @@ void Protocol::onDisconnect(Protocol::ClientId client_id)
 
                     uint8_t proto_header_to_send = proto_header_and_version_to_send >> 8;
 
+                    
+                    if (proto_header_to_send == END_DATA_TRANSMISSION_ACK)
+                        __client_states[client_id] = State::IDLE;
                     if (proto_header_to_send == START_DATA_TRANSMISSION)
                         __client_states[client_id] = State::START_APPLICATION_DATA_TRANSMISSION_ACK_WAITING;
                     if (proto_header_to_send == END_DATA_TRANSMISSION)
                         __client_states[client_id] = State::END_APPLICATION_DATA_TRANSMISSION_ACK_WAITING;
                     if (proto_header_to_send == START_DATA_TRANSMISSION_ACK) // sends to client acking thatcliant starting data transmission
                         __client_states[client_id] = State::APPLICATION_DATA_RECEIVING;
-                    if (proto_header_to_send == END_DATA_TRANSMISSION_ACK)
-                        __client_states[client_id] = State::IDLE;
 
                     // else - sending acks
                     return pending_data;
@@ -333,19 +334,18 @@ auto Protocol::isClientHasDataToSent(ClientId client_id) const -> bool
     if (const auto &itr = __data_waiting_to_sent.find(client_id); itr != __data_waiting_to_sent.end())
     {
         auto &q = itr->second;
-        return q.empty();
+        return q.empty() == false;
     }
 
     return false;
 }
 
-auto gbase::net::gProtocol::Protocol::shouldMonitorIPCChannelForSend(ClientId client_id) -> bool
+auto gbase::net::gProtocol::Protocol::shouldMonitorIPCChannelForWrite(ClientId client_id) -> bool
 {
     bool ret = false;
     if (const auto &itr = __client_states.find(client_id); itr != __client_states.end())
     {
         State client_state = itr->second;
-        GLOG_DEBUG_L1("Server protocol client handle {} is in client state {}", client_id, static_cast<int>(client_state))
         switch (client_state)
         {
         case State::CONNECTED:
@@ -353,22 +353,20 @@ auto gbase::net::gProtocol::Protocol::shouldMonitorIPCChannelForSend(ClientId cl
             ret = this->isClientHasDataToSent(client_id);
             break;
         case State::START_APPLICATION_DATA_TRANSMISSION_ACK_RECEIVED:
-            ret = true;
-            break;
         case State::APPLICATION_DATA_TRANSMISSION_COMPLETED:
-            
-            break;
         case State::APPLICATION_DATA_RECEPTION_COMPLETED:
-            
+            ret = true;
             break;
         case State::END_APPLICATION_DATA_TRANSMISSION_ACK_WAITING:   // concurrency control
         case State::APPLICATION_DATA_TRANSMITTING:                   // concurrency control
         case State::START_APPLICATION_DATA_TRANSMISSION_ACK_WAITING: // concurrency control
+            ret = false;
             break;
 
         default:
             break;
         }
     }
+    GLOG_DEBUG_L1("shouldMonitorIPCChannelForWrite [client_id = {}]= {}", client_id, ret)
     return ret;
 }

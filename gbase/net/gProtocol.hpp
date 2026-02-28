@@ -147,7 +147,7 @@ namespace gbase::net::gProtocol
         [[nodiscard]] auto getState(ClientId client_id) const -> State;
         [[nodiscard]] auto isClientHasDataToSent(ClientId client_id) const -> bool;
 
-        auto shouldMonitorIPCChannelForSend(ClientId client_id) -> bool;
+        auto shouldMonitorIPCChannelForWrite(ClientId client_id) -> bool;
 
         void onConnect(ClientId client_id);
         void onDisconnect(ClientId client_id);
