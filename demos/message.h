@@ -2,7 +2,7 @@
 #include <string>
 #include <memory>
 
-// predefine message
+// predefine message 
 // change according to order book object structure
 struct Message
 {
